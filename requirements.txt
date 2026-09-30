@@ -1,0 +1,8 @@
+gradio
+pandas
+numpy
+openpyxl
+sentence-transformers
+rank-bm25
+torch
+transformers
