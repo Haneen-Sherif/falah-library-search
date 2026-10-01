@@ -1,6 +1,5 @@
 import os
 import re
-import html
 
 import numpy as np
 import pandas as pd
@@ -38,6 +37,117 @@ BGE_MODEL = "BAAI/bge-reranker-v2-m3"
 
 
 # =========================================================
+# CSS
+# =========================================================
+
+st.markdown(
+    """
+    <style>
+
+    .block-container {
+        direction: rtl;
+        text-align: right;
+        max-width: 1100px;
+        padding-top: 3rem;
+    }
+
+    .main-title {
+        text-align: center;
+        font-size: 32px;
+        font-weight: 700;
+        margin-bottom: 30px;
+    }
+
+    .search-label {
+        font-size: 18px;
+        font-weight: 600;
+        margin-bottom: 8px;
+    }
+
+    .result-count {
+        font-size: 17px;
+        color: #667085;
+        margin: 25px 0 15px 0;
+    }
+
+    .result-card {
+        direction: rtl;
+        text-align: right;
+        background: white;
+        border: 1px solid #e4e7ec;
+        border-radius: 18px;
+        padding: 24px;
+        margin: 18px 0;
+        box-shadow: 0 4px 15px rgba(16, 24, 40, 0.07);
+    }
+
+    .course-name {
+        font-size: 14px;
+        color: #667085;
+        margin-bottom: 8px;
+    }
+
+    .lecture-name {
+        font-size: 24px;
+        font-weight: 700;
+        color: #172033;
+        margin-bottom: 18px;
+    }
+
+    .info-box {
+        background: #f8fafc;
+        border-radius: 12px;
+        padding: 15px;
+        margin-bottom: 15px;
+        line-height: 1.9;
+        color: #344054;
+    }
+
+    .score-box {
+        display: inline-block;
+        background: #eff6ff;
+        border-radius: 10px;
+        padding: 8px 14px;
+        color: #2563eb;
+        font-weight: 700;
+        font-size: 17px;
+        margin-bottom: 15px;
+    }
+
+    .lecture-button {
+        display: inline-block;
+        background: #2563eb;
+        color: white !important;
+        padding: 11px 20px;
+        border-radius: 10px;
+        text-decoration: none !important;
+        font-weight: 600;
+        font-size: 15px;
+    }
+
+    .lecture-button:hover {
+        background: #1d4ed8;
+        color: white !important;
+    }
+
+    .no-results {
+        direction: rtl;
+        text-align: center;
+        background: #f8f9fa;
+        border: 1px solid #e5e7eb;
+        border-radius: 16px;
+        padding: 30px;
+        margin-top: 25px;
+        color: #667085;
+    }
+
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+
+# =========================================================
 # تنظيف النص
 # =========================================================
 
@@ -60,7 +170,7 @@ def normalize_text(text):
         text
     )
 
-    # توحيد بعض الحروف العربية
+    # توحيد الحروف العربية
     text = text.replace("أ", "ا")
     text = text.replace("إ", "ا")
     text = text.replace("آ", "ا")
@@ -92,13 +202,12 @@ def normalize_text(text):
 def load_excel():
 
     if not os.path.exists(EXCEL_FILE):
+
         raise FileNotFoundError(
             f"لم يتم العثور على ملف {EXCEL_FILE}"
         )
 
-    df = pd.read_excel(EXCEL_FILE)
-
-    return df
+    return pd.read_excel(EXCEL_FILE)
 
 
 # =========================================================
@@ -267,7 +376,7 @@ def create_document_embeddings(
     _search_model
 ):
 
-    embeddings = _search_model.encode(
+    return _search_model.encode(
         [
             "passage: " + text
             for text in search_profiles
@@ -276,11 +385,9 @@ def create_document_embeddings(
         show_progress_bar=False
     )
 
-    return embeddings
-
 
 # =========================================================
-# تحميل كل شيء
+# إنشاء BM25
 # =========================================================
 
 @st.cache_resource
@@ -290,7 +397,7 @@ def build_bm25(corpus):
 
 
 # =========================================================
-# تحميل البيانات والنماذج
+# تحميل كل مكونات البحث
 # =========================================================
 
 try:
@@ -317,7 +424,7 @@ try:
 except Exception as e:
 
     st.error(
-        "حدث خطأ أثناء تحميل ملفات النظام أو النماذج."
+        "حدث خطأ أثناء تحميل النظام."
     )
 
     st.exception(e)
@@ -418,17 +525,9 @@ def search_library(
 
     candidates = df.copy()
 
-    candidates["bm25_score"] = (
-        bm25_scores
-    )
-
-    candidates["e5_score"] = (
-        e5_scores
-    )
-
-    candidates["rrf_score"] = (
-        rrf_scores
-    )
+    candidates["bm25_score"] = bm25_scores
+    candidates["e5_score"] = e5_scores
+    candidates["rrf_score"] = rrf_scores
 
     candidates = (
         candidates
@@ -452,11 +551,9 @@ def search_library(
         for _, row in candidates.iterrows()
     ]
 
-    candidates["bge_score"] = (
-        reranker.predict(
-            pairs,
-            show_progress_bar=False
-        )
+    candidates["bge_score"] = reranker.predict(
+        pairs,
+        show_progress_bar=False
     )
 
     # =====================================================
@@ -545,15 +642,13 @@ def search_library(
     if candidates.empty:
         return pd.DataFrame()
 
-    top_bge = candidates.iloc[0][
-        "bge_score"
-    ]
+    top_bge = candidates.iloc[0]["bge_score"]
 
     if top_bge < 0.001:
         return pd.DataFrame()
 
     # =====================================================
-    # تحديد مستوى الصلة
+    # مستوى الصلة
     # =====================================================
 
     if top_bge >= 0.10:
@@ -594,8 +689,7 @@ def search_library(
         )
 
     results = candidates[
-        candidates["bge_score"]
-        >= threshold
+        candidates["bge_score"] >= threshold
     ].copy()
 
     # =====================================================
@@ -616,9 +710,8 @@ def search_library(
             )
             |
             (
-                results[
-                    "direct_match_score"
-                ] > 0
+                results["direct_match_score"]
+                > 0
             )
         ].copy()
 
@@ -676,31 +769,19 @@ def build_result_reason(
     )
 
     title = normalize_text(
-        row.get(
-            "اسم المحاضرة",
-            ""
-        )
+        row.get("اسم المحاضرة", "")
     )
 
     category = normalize_text(
-        row.get(
-            "التصنيف الأساسي",
-            ""
-        )
+        row.get("التصنيف الأساسي", "")
     )
 
     subcategory = normalize_text(
-        row.get(
-            "التصنيف الفرعي",
-            ""
-        )
+        row.get("التصنيف الفرعي", "")
     )
 
     keywords = normalize_text(
-        row.get(
-            "keywords",
-            ""
-        )
+        row.get("keywords", "")
     )
 
     # =====================================================
@@ -794,41 +875,29 @@ def build_result_reason(
 # حساب درجة الصلة
 # =========================================================
 
-def calculate_relevance_score(
-    results
-):
+def calculate_relevance_score(results):
 
     if results.empty:
         return results
 
     results = results.copy()
 
-    top_score = results[
-        "bge_score"
-    ].max()
+    top_score = results["bge_score"].max()
 
     if top_score <= 0:
 
-        results[
-            "relevance_score"
-        ] = 0
+        results["relevance_score"] = 0
 
         return results
 
-    results[
-        "relevance_score"
-    ] = (
+    results["relevance_score"] = (
         results["bge_score"]
         / top_score
         * 100
     )
 
-    results[
-        "relevance_score"
-    ] = (
-        results[
-            "relevance_score"
-        ]
+    results["relevance_score"] = (
+        results["relevance_score"]
         .clip(0, 100)
         .round(0)
         .astype(int)
@@ -848,8 +917,25 @@ def display_results(
 
     if results.empty:
 
-        st.warning(
-            f"لم نجد محاضرات مناسبة للبحث: **{query}**"
+        st.markdown(
+            f"""
+            <div class="no-results">
+
+                <h3>
+                    لم نجد محاضرات مناسبة
+                </h3>
+
+                <p>
+                    لا توجد محاضرات مرتبطة بشكل كافٍ ببحثك:
+                </p>
+
+                <strong>
+                    {query}
+                </strong>
+
+            </div>
+            """,
+            unsafe_allow_html=True
         )
 
         return
@@ -860,12 +946,7 @@ def display_results(
 
     st.markdown(
         f"""
-        <div style="
-            direction:rtl;
-            text-align:right;
-            font-size:18px;
-            margin:20px 0;
-        ">
+        <div class="result-count">
             تم العثور على
             <strong>{len(results)}</strong>
             نتيجة مناسبة
@@ -876,21 +957,17 @@ def display_results(
 
     for _, row in results.iterrows():
 
-        course = html.escape(
-            str(row["اسم الدورة"])
+        course = str(
+            row["اسم الدورة"]
         )
 
-        lecture = html.escape(
-            str(row["اسم المحاضرة"])
+        lecture = str(
+            row["اسم المحاضرة"]
         )
 
-        reason = html.escape(
-            str(
-                build_result_reason(
-                    row,
-                    query
-                )
-            )
+        reason = build_result_reason(
+            row,
+            query
         )
 
         url = str(
@@ -903,44 +980,45 @@ def display_results(
             row["relevance_score"]
         )
 
+        # حماية HTML
+        course = (
+            course
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+        )
+
+        lecture = (
+            lecture
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+        )
+
+        reason = (
+            reason
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+        )
+
+        # =================================================
+        # الكارد
+        # =================================================
+
         st.markdown(
             f"""
-            <div style="
-                direction:rtl;
-                text-align:right;
-                background:white;
-                border:1px solid #e5e7eb;
-                border-radius:18px;
-                padding:22px;
-                margin:15px 0;
-                box-shadow:0 5px 18px rgba(16,24,40,.06);
-            ">
+            <div class="result-card">
 
-                <div style="
-                    color:#667085;
-                    font-size:14px;
-                    margin-bottom:8px;
-                ">
+                <div class="course-name">
                     {course}
                 </div>
 
-                <div style="
-                    font-size:22px;
-                    font-weight:bold;
-                    color:#172033;
-                    margin-bottom:15px;
-                ">
+                <div class="lecture-name">
                     {lecture}
                 </div>
 
-                <div style="
-                    background:#f8fafc;
-                    padding:13px;
-                    border-radius:12px;
-                    line-height:1.8;
-                    margin-bottom:17px;
-                    color:#344054;
-                ">
+                <div class="info-box">
 
                     <strong>
                         لماذا ظهرت هذه المحاضرة؟
@@ -952,34 +1030,24 @@ def display_results(
 
                 </div>
 
-                <div style="
-                    font-weight:bold;
-                    margin-bottom:15px;
-                ">
+                <div class="score-box">
+                    درجة الصلة: {score}/100
+                </div>
 
-                    درجة الصلة:
-
-                    <span style="
-                        color:#2563eb;
-                        font-size:20px;
-                    ">
-                        {score}/100
-                    </span>
-
+                <div>
+                    <a
+                        href="{url}"
+                        target="_blank"
+                        class="lecture-button"
+                    >
+                        🔗 فتح المحاضرة
+                    </a>
                 </div>
 
             </div>
             """,
             unsafe_allow_html=True
         )
-
-        if url and url.lower() != "nan":
-
-            st.link_button(
-                "🔗 فتح المحاضرة",
-                url,
-                use_container_width=False
-            )
 
 
 # =========================================================
@@ -988,15 +1056,8 @@ def display_results(
 
 st.markdown(
     """
-    <div dir="rtl" style="text-align:center;">
-
-    # 🔎 محرك البحث الذكي لفيديوهات أكاديمية الفلاح
-
-    <p style="font-size:18px;color:#667085;">
-    اكتب ما تبحث عنه باللغة الطبيعية،
-    وسيبحث النظام داخل مكتبة المحاضرات.
-    </p>
-
+    <div class="main-title">
+        🔎 محرك البحث الذكي لفيديوهات أكاديمية الفلاح
     </div>
     """,
     unsafe_allow_html=True
@@ -1004,14 +1065,12 @@ st.markdown(
 
 
 # =========================================================
-# مربع البحث
+# البحث
 # =========================================================
 
 query = st.text_input(
     "ماذا تبحث؟",
-    placeholder=(
-        "مثال: أريد محاضرات عن الإسعافات الأولية"
-    )
+    placeholder="مثال: أريد محاضرات عن الإسعافات الأولية"
 )
 
 
@@ -1037,7 +1096,7 @@ if search_button:
     else:
 
         with st.spinner(
-            "جاري البحث داخل مكتبة المحاضرات..."
+            "جاري البحث في محاضرات أكاديمية الفلاح"
         ):
 
             results = search_library(
@@ -1048,12 +1107,3 @@ if search_button:
             results,
             query
         )
-
-
-# =========================================================
-# Enter للبحث
-# =========================================================
-
-if query.strip() and not search_button:
-
-    pass
