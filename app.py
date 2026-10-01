@@ -927,14 +927,17 @@ def display_results(
         results
     )
 
-    # عدد النتائج - على اليمين
+    # =====================================================
+    # عدد النتائج
+    # =====================================================
+
     st.markdown(
         f"""
         <div dir="rtl" style="
-            text-align: right;
-            font-size: 18px;
-            color: #667085;
-            margin: 25px 0 15px 0;
+            text-align:right;
+            font-size:18px;
+            color:#667085;
+            margin:25px 0 15px 0;
         ">
             تم العثور على
             <strong>{len(results)}</strong>
@@ -943,6 +946,10 @@ def display_results(
         """,
         unsafe_allow_html=True
     )
+
+    # =====================================================
+    # النتائج
+    # =====================================================
 
     for _, row in results.iterrows():
 
@@ -970,97 +977,159 @@ def display_results(
         )
 
         # =================================================
-        # بداية الكارد
+        # الكارد
         # =================================================
 
         with st.container(border=True):
 
-            # اسم الدورة
+            # -------------------------------------------------
+            # الدورة
+            # -------------------------------------------------
+
             st.markdown(
                 f"""
                 <div dir="rtl" style="
                     text-align:right;
                     color:#667085;
-                    font-size:14px;
-                    margin-bottom:8px;
+                    font-size:15px;
+                    margin-bottom:12px;
                 ">
+                    <strong>الدورة:</strong>
                     {course}
                 </div>
                 """,
                 unsafe_allow_html=True
             )
 
-            # اسم المحاضرة
+            # -------------------------------------------------
+            # المحاضرة
+            # -------------------------------------------------
+
             st.markdown(
                 f"""
                 <div dir="rtl" style="
                     text-align:right;
+                    color:#172033;
                     font-size:24px;
                     font-weight:700;
-                    color:#172033;
-                    margin-bottom:18px;
+                    margin-bottom:20px;
                 ">
+                    <strong>المحاضرة:</strong>
                     {lecture}
                 </div>
                 """,
                 unsafe_allow_html=True
             )
 
+            # -------------------------------------------------
             # سبب ظهور النتيجة
+            # -------------------------------------------------
+
             st.markdown(
-                f"""
+                """
                 <div dir="rtl" style="
                     text-align:right;
                     background:#f8fafc;
+                    border:1px solid #eaecf0;
                     border-radius:12px;
-                    padding:15px;
-                    line-height:1.9;
-                    margin-bottom:15px;
+                    padding:15px 18px;
+                    margin-bottom:20px;
                     color:#344054;
+                    line-height:1.8;
                 ">
-                    <strong>
-                        لماذا ظهرت هذه المحاضرة؟
-                    </strong>
-
-                    <br>
-
-                    {reason}
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-
-            # درجة الصلة
-            st.markdown(
-                f"""
-                <div dir="rtl" style="
-                    text-align:right;
-                    margin:10px 0 15px 0;
-                ">
-                    <span style="
-                        display:inline-block;
-                        background:#eff6ff;
-                        color:#2563eb;
-                        border-radius:10px;
-                        padding:8px 14px;
+                    <div style="
                         font-weight:700;
-                        font-size:17px;
+                        color:#172033;
+                        margin-bottom:6px;
                     ">
-                        درجة الصلة: {score}/100
-                    </span>
+                        لماذا ظهرت هذه المحاضرة؟
+                    </div>
+
+                    <div>
+                """,
+                unsafe_allow_html=True
+            )
+
+            # السبب كنص Streamlit عادي
+            st.markdown(
+                reason
+            )
+
+            st.markdown(
+                """
+                    </div>
                 </div>
                 """,
                 unsafe_allow_html=True
             )
 
-            # رابط المحاضرة داخل الكارد
-            if url and url.lower() != "nan":
+            # -------------------------------------------------
+            # درجة الصلة + الرابط
+            # -------------------------------------------------
 
-                st.link_button(
-                    "🔗 فتح المحاضرة",
-                    url
+            col_score, col_link = st.columns(
+                [1, 1],
+                gap="large"
+            )
+
+            # درجة الصلة على اليمين
+            with col_score:
+
+                st.markdown(
+                    f"""
+                    <div dir="rtl" style="
+                        text-align:right;
+                        padding-top:8px;
+                    ">
+
+                        <span style="
+                            display:inline-block;
+                            background:#eff6ff;
+                            color:#2563eb;
+                            border-radius:10px;
+                            padding:9px 15px;
+                            font-weight:700;
+                            font-size:16px;
+                        ">
+                            درجة الصلة: {score}/100
+                        </span>
+
+                    </div>
+                    """,
+                    unsafe_allow_html=True
                 )
 
+            # الرابط على الشمال
+            with col_link:
+
+                if url and url.lower() != "nan":
+
+                    st.markdown(
+                        f"""
+                        <div dir="ltr" style="
+                            text-align:left;
+                            padding-top:4px;
+                        ">
+                            <a
+                                href="{url}"
+                                target="_blank"
+                                style="
+                                    display:inline-block;
+                                    background:#2563eb;
+                                    color:white;
+                                    padding:10px 18px;
+                                    border-radius:10px;
+                                    text-decoration:none;
+                                    font-weight:600;
+                                    font-size:15px;
+                                "
+                            >
+                                🔗 فتح المحاضرة
+                            </a>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
 
 # =========================================================
 # واجهة التطبيق
