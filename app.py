@@ -70,60 +70,60 @@ st.markdown(
         margin: 25px 0 15px 0;
     }
 
-    .result-card {
-        direction: rtl;
-        text-align: right;
-        background: white;
-        border: 1px solid #e4e7ec;
-        border-radius: 18px;
-        padding: 24px;
-        margin: 18px 0;
-        box-shadow: 0 4px 15px rgba(16, 24, 40, 0.07);
-    }
+    # .result-card {
+    #     direction: rtl;
+    #     text-align: right;
+    #     background: white;
+    #     border: 1px solid #e4e7ec;
+    #     border-radius: 18px;
+    #     padding: 24px;
+    #     margin: 18px 0;
+    #     box-shadow: 0 4px 15px rgba(16, 24, 40, 0.07);
+    # }
 
-    .course-name {
-        font-size: 14px;
-        color: #667085;
-        margin-bottom: 8px;
-    }
+    # .course-name {
+    #     font-size: 14px;
+    #     color: #667085;
+    #     margin-bottom: 8px;
+    # }
 
-    .lecture-name {
-        font-size: 24px;
-        font-weight: 700;
-        color: #172033;
-        margin-bottom: 18px;
-    }
+    # .lecture-name {
+    #     font-size: 24px;
+    #     font-weight: 700;
+    #     color: #172033;
+    #     margin-bottom: 18px;
+    # }
 
-    .info-box {
-        background: #f8fafc;
-        border-radius: 12px;
-        padding: 15px;
-        margin-bottom: 15px;
-        line-height: 1.9;
-        color: #344054;
-    }
+    # .info-box {
+    #     background: #f8fafc;
+    #     border-radius: 12px;
+    #     padding: 15px;
+    #     margin-bottom: 15px;
+    #     line-height: 1.9;
+    #     color: #344054;
+    # }
 
-    .score-box {
-        display: inline-block;
-        background: #eff6ff;
-        border-radius: 10px;
-        padding: 8px 14px;
-        color: #2563eb;
-        font-weight: 700;
-        font-size: 17px;
-        margin-bottom: 15px;
-    }
+    # .score-box {
+    #     display: inline-block;
+    #     background: #eff6ff;
+    #     border-radius: 10px;
+    #     padding: 8px 14px;
+    #     color: #2563eb;
+    #     font-weight: 700;
+    #     font-size: 17px;
+    #     margin-bottom: 15px;
+    # }
 
-    .lecture-button {
-        display: inline-block;
-        background: #2563eb;
-        color: white !important;
-        padding: 11px 20px;
-        border-radius: 10px;
-        text-decoration: none !important;
-        font-weight: 600;
-        font-size: 15px;
-    }
+    # .lecture-button {
+    #     display: inline-block;
+    #     background: #2563eb;
+    #     color: white !important;
+    #     padding: 11px 20px;
+    #     border-radius: 10px;
+    #     text-decoration: none !important;
+    #     font-weight: 600;
+    #     font-size: 15px;
+    # }
 
     .lecture-button:hover {
         background: #1d4ed8;
@@ -917,25 +917,8 @@ def display_results(
 
     if results.empty:
 
-        st.markdown(
-            f"""
-            <div class="no-results">
-
-                <h3>
-                    لم نجد محاضرات مناسبة
-                </h3>
-
-                <p>
-                    لا توجد محاضرات مرتبطة بشكل كافٍ ببحثك:
-                </p>
-
-                <strong>
-                    {query}
-                </strong>
-
-            </div>
-            """,
-            unsafe_allow_html=True
+        st.warning(
+            f"لم نجد محاضرات مناسبة للبحث: {query}"
         )
 
         return
@@ -944,9 +927,15 @@ def display_results(
         results
     )
 
+    # عدد النتائج - على اليمين
     st.markdown(
         f"""
-        <div class="result-count">
+        <div dir="rtl" style="
+            text-align: right;
+            font-size: 18px;
+            color: #667085;
+            margin: 25px 0 15px 0;
+        ">
             تم العثور على
             <strong>{len(results)}</strong>
             نتيجة مناسبة
@@ -980,46 +969,55 @@ def display_results(
             row["relevance_score"]
         )
 
-        # حماية HTML
-        course = (
-            course
-            .replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-        )
-
-        lecture = (
-            lecture
-            .replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-        )
-
-        reason = (
-            reason
-            .replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-        )
-
         # =================================================
-        # الكارد
+        # بداية الكارد
         # =================================================
 
-        st.markdown(
-            f"""
-            <div class="result-card">
+        with st.container(border=True):
 
-                <div class="course-name">
+            # اسم الدورة
+            st.markdown(
+                f"""
+                <div dir="rtl" style="
+                    text-align:right;
+                    color:#667085;
+                    font-size:14px;
+                    margin-bottom:8px;
+                ">
                     {course}
                 </div>
+                """,
+                unsafe_allow_html=True
+            )
 
-                <div class="lecture-name">
+            # اسم المحاضرة
+            st.markdown(
+                f"""
+                <div dir="rtl" style="
+                    text-align:right;
+                    font-size:24px;
+                    font-weight:700;
+                    color:#172033;
+                    margin-bottom:18px;
+                ">
                     {lecture}
                 </div>
+                """,
+                unsafe_allow_html=True
+            )
 
-                <div class="info-box">
-
+            # سبب ظهور النتيجة
+            st.markdown(
+                f"""
+                <div dir="rtl" style="
+                    text-align:right;
+                    background:#f8fafc;
+                    border-radius:12px;
+                    padding:15px;
+                    line-height:1.9;
+                    margin-bottom:15px;
+                    color:#344054;
+                ">
                     <strong>
                         لماذا ظهرت هذه المحاضرة؟
                     </strong>
@@ -1027,27 +1025,41 @@ def display_results(
                     <br>
 
                     {reason}
-
                 </div>
+                """,
+                unsafe_allow_html=True
+            )
 
-                <div class="score-box">
-                    درجة الصلة: {score}/100
+            # درجة الصلة
+            st.markdown(
+                f"""
+                <div dir="rtl" style="
+                    text-align:right;
+                    margin:10px 0 15px 0;
+                ">
+                    <span style="
+                        display:inline-block;
+                        background:#eff6ff;
+                        color:#2563eb;
+                        border-radius:10px;
+                        padding:8px 14px;
+                        font-weight:700;
+                        font-size:17px;
+                    ">
+                        درجة الصلة: {score}/100
+                    </span>
                 </div>
+                """,
+                unsafe_allow_html=True
+            )
 
-                <div>
-                    <a
-                        href="{url}"
-                        target="_blank"
-                        class="lecture-button"
-                    >
-                        🔗 فتح المحاضرة
-                    </a>
-                </div>
+            # رابط المحاضرة داخل الكارد
+            if url and url.lower() != "nan":
 
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+                st.link_button(
+                    "🔗 فتح المحاضرة",
+                    url
+                )
 
 
 # =========================================================
