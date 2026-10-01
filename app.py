@@ -4,10 +4,21 @@ import html
 
 import numpy as np
 import pandas as pd
-import gradio as gr
+import streamlit as st
 
 from sentence_transformers import SentenceTransformer, CrossEncoder
 from rank_bm25 import BM25Okapi
+
+
+# =========================================================
+# إعدادات الصفحة
+# =========================================================
+
+st.set_page_config(
+    page_title="محرك البحث الذكي للمحاضرات",
+    page_icon="🔎",
+    layout="wide"
+)
 
 
 # =========================================================
@@ -22,28 +33,16 @@ DESCRIPTION_COL = (
     "الدورة (في حال عدم وجود وصف للمحاضرات)"
 )
 
-# النماذج
 E5_MODEL = "intfloat/multilingual-e5-base"
 BGE_MODEL = "BAAI/bge-reranker-v2-m3"
 
 
 # =========================================================
-# 1) تحميل ملف Excel
-# =========================================================
-
-print("تحميل ملف Excel...")
-
-df = pd.read_excel(EXCEL_FILE)
-
-print("عدد الصفوف:", len(df))
-print("عدد الأعمدة:", len(df.columns))
-
-
-# =========================================================
-# 2) تنظيف النص
+# تنظيف النص
 # =========================================================
 
 def clean_text(value):
+
     if pd.isna(value):
         return ""
 
@@ -51,6 +50,7 @@ def clean_text(value):
 
 
 def normalize_text(text):
+
     text = str(text).lower().strip()
 
     # إزالة التشكيل العربي
@@ -85,79 +85,97 @@ def normalize_text(text):
 
 
 # =========================================================
-# 3) التأكد من الأعمدة المطلوبة
+# تحميل Excel
 # =========================================================
 
-required_columns = [
-    "ID",
-    "اسم الدورة",
-    "اسم المحاضرة",
-    "التصنيف الأساسي",
-    "التصنيف الفرعي",
-    "keywords",
-    DESCRIPTION_COL,
-    "الرابط من المصدر الاساسي (حفظا لحقوق النشر)"
-]
+@st.cache_data
+def load_excel():
 
-missing_columns = [
-    col for col in required_columns
-    if col not in df.columns
-]
+    if not os.path.exists(EXCEL_FILE):
+        raise FileNotFoundError(
+            f"لم يتم العثور على ملف {EXCEL_FILE}"
+        )
 
-if missing_columns:
-    raise ValueError(
-        "الأعمدة التالية غير موجودة في ملف Excel:\n"
-        + "\n".join(missing_columns)
+    df = pd.read_excel(EXCEL_FILE)
+
+    return df
+
+
+# =========================================================
+# تجهيز البيانات
+# =========================================================
+
+@st.cache_data
+def prepare_dataframe(df):
+
+    required_columns = [
+        "ID",
+        "اسم الدورة",
+        "اسم المحاضرة",
+        "التصنيف الأساسي",
+        "التصنيف الفرعي",
+        "keywords",
+        DESCRIPTION_COL,
+        "الرابط من المصدر الاساسي (حفظا لحقوق النشر)"
+    ]
+
+    missing_columns = [
+        col
+        for col in required_columns
+        if col not in df.columns
+    ]
+
+    if missing_columns:
+
+        raise ValueError(
+            "الأعمدة التالية غير موجودة في ملف Excel:\n"
+            + "\n".join(missing_columns)
+        )
+
+    df = df.copy()
+
+    df["lecture_clean"] = (
+        df["اسم المحاضرة"]
+        .fillna("")
+        .astype(str)
+        .apply(clean_text)
     )
 
+    df["main_category_clean"] = (
+        df["التصنيف الأساسي"]
+        .fillna("")
+        .astype(str)
+        .apply(clean_text)
+    )
 
-# =========================================================
-# 4) تنظيف أعمدة البحث
-# =========================================================
+    df["subcategory_clean"] = (
+        df["التصنيف الفرعي"]
+        .fillna("")
+        .astype(str)
+        .apply(clean_text)
+    )
 
-df["lecture_clean"] = (
-    df["اسم المحاضرة"]
-    .fillna("")
-    .astype(str)
-    .apply(clean_text)
-)
+    df["keywords_clean"] = (
+        df["keywords"]
+        .fillna("")
+        .astype(str)
+        .apply(clean_text)
+    )
 
-df["main_category_clean"] = (
-    df["التصنيف الأساسي"]
-    .fillna("")
-    .astype(str)
-    .apply(clean_text)
-)
+    df["description_clean"] = (
+        df[DESCRIPTION_COL]
+        .fillna("")
+        .astype(str)
+        .apply(clean_text)
+    )
 
-df["subcategory_clean"] = (
-    df["التصنيف الفرعي"]
-    .fillna("")
-    .astype(str)
-    .apply(clean_text)
-)
+    # =====================================================
+    # Search Profile
+    # =====================================================
 
-df["keywords_clean"] = (
-    df["keywords"]
-    .fillna("")
-    .astype(str)
-    .apply(clean_text)
-)
+    def build_search_profile(row):
 
-df["description_clean"] = (
-    df[DESCRIPTION_COL]
-    .fillna("")
-    .astype(str)
-    .apply(clean_text)
-)
-
-
-# =========================================================
-# 5) بناء Search Profile
-# =========================================================
-
-def build_search_profile(row):
-
-    return f"""
+        return f"""
 اسم الدورة: {row["اسم الدورة"]}
 
 اسم المحاضرة: {row["lecture_clean"]}
@@ -171,112 +189,144 @@ def build_search_profile(row):
 وصف المحاضرة: {row["description_clean"]}
 """.strip()
 
+    df["search_profile"] = df.apply(
+        build_search_profile,
+        axis=1
+    )
 
-df["search_profile"] = df.apply(
-    build_search_profile,
-    axis=1
-)
+    # =====================================================
+    # BM25
+    # =====================================================
 
-print("تم إنشاء Search Profile.")
+    bm25_columns = [
+        "اسم المحاضرة",
+        "التصنيف الأساسي",
+        "التصنيف الفرعي",
+        "keywords"
+    ]
+
+    for col in bm25_columns:
+
+        df[col + "_normalized"] = (
+            df[col]
+            .fillna("")
+            .astype(str)
+            .apply(normalize_text)
+        )
+
+    df["bm25_text"] = (
+        df["اسم المحاضرة_normalized"]
+        + " "
+        + df["التصنيف الأساسي_normalized"]
+        + " "
+        + df["التصنيف الفرعي_normalized"]
+        + " "
+        + df["keywords_normalized"]
+    )
+
+    bm25_corpus = [
+        text.split()
+        for text in df["bm25_text"]
+    ]
+
+    return df, bm25_corpus
 
 
 # =========================================================
-# 6) تحميل Multilingual E5
+# تحميل E5
 # =========================================================
 
-print("تحميل Multilingual E5...")
+@st.cache_resource
+def load_search_model():
 
-search_model = SentenceTransformer(
-    E5_MODEL
-)
-
-print("تم تحميل E5.")
-
-
-# =========================================================
-# 7) إنشاء Embeddings للمحاضرات
-# =========================================================
-
-print("إنشاء Embeddings للمحاضرات...")
-
-document_embeddings = search_model.encode(
-    [
-        "passage: " + text
-        for text in df["search_profile"].tolist()
-    ],
-    normalize_embeddings=True,
-    show_progress_bar=True
-)
-
-print(
-    "عدد المحاضرات المفهرسة:",
-    len(document_embeddings)
-)
-
-
-# =========================================================
-# 8) تجهيز BM25
-# =========================================================
-
-print("إنشاء BM25...")
-
-bm25_columns = [
-    "اسم المحاضرة",
-    "التصنيف الأساسي",
-    "التصنيف الفرعي",
-    "keywords"
-]
-
-for col in bm25_columns:
-
-    df[col + "_normalized"] = (
-        df[col]
-        .fillna("")
-        .astype(str)
-        .apply(normalize_text)
+    return SentenceTransformer(
+        E5_MODEL
     )
 
 
-df["bm25_text"] = (
-    df["اسم المحاضرة_normalized"]
-    + " "
-    + df["التصنيف الأساسي_normalized"]
-    + " "
-    + df["التصنيف الفرعي_normalized"]
-    + " "
-    + df["keywords_normalized"]
-)
+# =========================================================
+# تحميل BGE
+# =========================================================
 
+@st.cache_resource
+def load_reranker():
 
-bm25_corpus = [
-    text.split()
-    for text in df["bm25_text"]
-]
-
-
-bm25 = BM25Okapi(
-    bm25_corpus
-)
-
-print("تم إنشاء BM25.")
+    return CrossEncoder(
+        BGE_MODEL,
+        max_length=512
+    )
 
 
 # =========================================================
-# 9) تحميل BGE Reranker
+# إنشاء Embeddings
 # =========================================================
 
-print("تحميل BGE Reranker...")
+@st.cache_data
+def create_document_embeddings(
+    search_profiles,
+    _search_model
+):
 
-reranker = CrossEncoder(
-    BGE_MODEL,
-    max_length=512
-)
+    embeddings = _search_model.encode(
+        [
+            "passage: " + text
+            for text in search_profiles
+        ],
+        normalize_embeddings=True,
+        show_progress_bar=False
+    )
 
-print("تم تحميل BGE Reranker.")
+    return embeddings
 
 
 # =========================================================
-# 10) Hybrid Search
+# تحميل كل شيء
+# =========================================================
+
+@st.cache_resource
+def build_bm25(corpus):
+
+    return BM25Okapi(corpus)
+
+
+# =========================================================
+# تحميل البيانات والنماذج
+# =========================================================
+
+try:
+
+    df = load_excel()
+
+    df, bm25_corpus = prepare_dataframe(
+        df
+    )
+
+    search_model = load_search_model()
+
+    document_embeddings = create_document_embeddings(
+        tuple(df["search_profile"].tolist()),
+        search_model
+    )
+
+    bm25 = build_bm25(
+        bm25_corpus
+    )
+
+    reranker = load_reranker()
+
+except Exception as e:
+
+    st.error(
+        "حدث خطأ أثناء تحميل ملفات النظام أو النماذج."
+    )
+
+    st.exception(e)
+
+    st.stop()
+
+
+# =========================================================
+# Hybrid Search
 # =========================================================
 
 def search_library(
@@ -298,10 +348,9 @@ def search_library(
     if not query_tokens:
         return pd.DataFrame()
 
-
-    # -----------------------------------------------------
+    # =====================================================
     # BM25
-    # -----------------------------------------------------
+    # =====================================================
 
     bm25_scores = bm25.get_scores(
         query_tokens
@@ -311,10 +360,9 @@ def search_library(
         -bm25_scores
     )
 
-
-    # -----------------------------------------------------
+    # =====================================================
     # E5
-    # -----------------------------------------------------
+    # =====================================================
 
     query_embedding = search_model.encode(
         ["query: " + query],
@@ -330,10 +378,9 @@ def search_library(
         -e5_scores
     )
 
-
-    # -----------------------------------------------------
+    # =====================================================
     # RRF
-    # -----------------------------------------------------
+    # =====================================================
 
     n = len(df)
 
@@ -365,10 +412,9 @@ def search_library(
         1 / (rrf_k + e5_rank)
     )
 
-
-    # -----------------------------------------------------
+    # =====================================================
     # Candidate selection
-    # -----------------------------------------------------
+    # =====================================================
 
     candidates = df.copy()
 
@@ -394,10 +440,9 @@ def search_library(
         .reset_index(drop=True)
     )
 
-
-    # -----------------------------------------------------
+    # =====================================================
     # BGE Reranking
-    # -----------------------------------------------------
+    # =====================================================
 
     pairs = [
         [
@@ -414,10 +459,9 @@ def search_library(
         )
     )
 
-
-    # -----------------------------------------------------
+    # =====================================================
     # Direct topic matching
-    # -----------------------------------------------------
+    # =====================================================
 
     direct_scores = []
     matched_terms_list = []
@@ -464,7 +508,6 @@ def search_library(
             matched_terms
         )
 
-
     candidates["direct_match_score"] = (
         direct_scores
     )
@@ -473,17 +516,15 @@ def search_library(
         matched_terms_list
     )
 
-
-    # -----------------------------------------------------
+    # =====================================================
     # Final score
-    # -----------------------------------------------------
+    # =====================================================
 
     candidates["final_score"] = (
         candidates["bge_score"] * 0.85
         +
         candidates["direct_match_score"] * 0.15
     )
-
 
     candidates = (
         candidates
@@ -497,10 +538,9 @@ def search_library(
         .reset_index(drop=True)
     )
 
-
-    # -----------------------------------------------------
+    # =====================================================
     # Relevance Gate
-    # -----------------------------------------------------
+    # =====================================================
 
     if candidates.empty:
         return pd.DataFrame()
@@ -509,15 +549,12 @@ def search_library(
         "bge_score"
     ]
 
-
-    # لا يوجد تطابق حقيقي
     if top_bge < 0.001:
         return pd.DataFrame()
 
-
-    # -----------------------------------------------------
+    # =====================================================
     # تحديد مستوى الصلة
-    # -----------------------------------------------------
+    # =====================================================
 
     if top_bge >= 0.10:
 
@@ -531,10 +568,9 @@ def search_library(
 
         relevance_level = "weak"
 
-
-    # -----------------------------------------------------
+    # =====================================================
     # Threshold
-    # -----------------------------------------------------
+    # =====================================================
 
     if relevance_level == "strong":
 
@@ -557,16 +593,14 @@ def search_library(
             top_bge * 0.50
         )
 
-
     results = candidates[
         candidates["bge_score"]
         >= threshold
     ].copy()
 
-
-    # -----------------------------------------------------
-    # حماية إضافية للموضوعات الواضحة
-    # -----------------------------------------------------
+    # =====================================================
+    # حماية إضافية
+    # =====================================================
 
     if top_bge >= 0.50:
 
@@ -588,14 +622,12 @@ def search_library(
             )
         ].copy()
 
-
     if results.empty:
         return pd.DataFrame()
 
-
-    # -----------------------------------------------------
+    # =====================================================
     # الأعمدة المطلوبة
-    # -----------------------------------------------------
+    # =====================================================
 
     output_columns = [
         "ID",
@@ -627,7 +659,7 @@ def search_library(
 
 
 # =========================================================
-# 11) سبب ظهور النتيجة
+# سبب ظهور النتيجة
 # =========================================================
 
 def build_result_reason(
@@ -671,10 +703,9 @@ def build_result_reason(
         )
     )
 
-
-    # -----------------------------------------------------
+    # =====================================================
     # العنوان
-    # -----------------------------------------------------
+    # =====================================================
 
     title_words = set(
         title.split()
@@ -700,10 +731,9 @@ def build_result_reason(
             "مرتبطًا مباشرة ببحثك."
         )
 
-
-    # -----------------------------------------------------
+    # =====================================================
     # التصنيف الفرعي
-    # -----------------------------------------------------
+    # =====================================================
 
     if subcategory:
 
@@ -719,10 +749,9 @@ def build_result_reason(
                 f"{row.get('التصنيف الفرعي', '')}."
             )
 
-
-    # -----------------------------------------------------
+    # =====================================================
     # التصنيف الأساسي
-    # -----------------------------------------------------
+    # =====================================================
 
     if category:
 
@@ -738,10 +767,9 @@ def build_result_reason(
                 f"{row.get('التصنيف الأساسي', '')}."
             )
 
-
-    # -----------------------------------------------------
+    # =====================================================
     # Keywords
-    # -----------------------------------------------------
+    # =====================================================
 
     if keywords:
 
@@ -756,7 +784,6 @@ def build_result_reason(
                 "موضوعات مرتبطة ببحثك."
             )
 
-
     return (
         "المحاضرة مرتبطة دلاليًا "
         "بموضوع البحث."
@@ -764,7 +791,7 @@ def build_result_reason(
 
 
 # =========================================================
-# 12) حساب درجة الصلة
+# حساب درجة الصلة
 # =========================================================
 
 def calculate_relevance_score(
@@ -787,7 +814,6 @@ def calculate_relevance_score(
         ] = 0
 
         return results
-
 
     results[
         "relevance_score"
@@ -812,214 +838,124 @@ def calculate_relevance_score(
 
 
 # =========================================================
-# 13) تجهيز النتائج
+# عرض النتائج
 # =========================================================
 
-def format_search_results(
+def display_results(
     results,
     query
 ):
 
     if results.empty:
-        return []
+
+        st.warning(
+            f"لم نجد محاضرات مناسبة للبحث: **{query}**"
+        )
+
+        return
 
     results = calculate_relevance_score(
         results
     )
 
-    formatted = []
+    st.markdown(
+        f"""
+        <div style="
+            direction:rtl;
+            text-align:right;
+            font-size:18px;
+            margin:20px 0;
+        ">
+            تم العثور على
+            <strong>{len(results)}</strong>
+            نتيجة مناسبة
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
     for _, row in results.iterrows():
 
-        formatted.append({
-
-            "id": row["ID"],
-
-            "course": row[
-                "اسم الدورة"
-            ],
-
-            "lecture": row[
-                "اسم المحاضرة"
-            ],
-
-            "url": row[
-                "الرابط من المصدر الاساسي (حفظا لحقوق النشر)"
-            ],
-
-            "relevance_score": int(
-                row[
-                    "relevance_score"
-                ]
-            ),
-
-            "reason": build_result_reason(
-                row,
-                query
-            )
-        })
-
-    return formatted
-
-
-# =========================================================
-# 14) Web Search
-# =========================================================
-
-def web_search(query):
-
-    query = str(query).strip()
-
-    if not query:
-
-        return """
-        <div style="
-            direction:rtl;
-            text-align:center;
-            padding:30px;
-        ">
-            من فضلك اكتب سؤال البحث.
-        </div>
-        """
-
-
-    results = search_library(
-        query
-    )
-
-    formatted_results = (
-        format_search_results(
-            results,
-            query
-        )
-    )
-
-
-    # -----------------------------------------------------
-    # لا توجد نتائج
-    # -----------------------------------------------------
-
-    if not formatted_results:
-
-        safe_query = html.escape(
-            query
-        )
-
-        return f"""
-        <div style="
-            direction:rtl;
-            text-align:right;
-            font-family:Arial;
-            padding:30px;
-            border-radius:18px;
-            background:#f8f9fa;
-            border:1px solid #e5e7eb;
-        ">
-
-            <h2 style="margin-top:0;">
-                لم نجد محاضرات مناسبة
-            </h2>
-
-            <p style="color:#667085;">
-                لا توجد محاضرات في المكتبة
-                مرتبطة بشكل كافٍ ببحثك:
-            </p>
-
-            <strong>
-                {safe_query}
-            </strong>
-
-        </div>
-        """
-
-
-    # -----------------------------------------------------
-    # Cards
-    # -----------------------------------------------------
-
-    cards = []
-
-    for result in formatted_results:
-
         course = html.escape(
-            str(result["course"])
+            str(row["اسم الدورة"])
         )
 
         lecture = html.escape(
-            str(result["lecture"])
+            str(row["اسم المحاضرة"])
         )
 
         reason = html.escape(
-            str(result["reason"])
+            str(
+                build_result_reason(
+                    row,
+                    query
+                )
+            )
         )
 
-        url = html.escape(
-            str(result["url"])
-        )
+        url = str(
+            row[
+                "الرابط من المصدر الاساسي (حفظا لحقوق النشر)"
+            ]
+        ).strip()
 
         score = int(
-            result["relevance_score"]
+            row["relevance_score"]
         )
 
-
-        card = f"""
-        <div style="
-            direction:rtl;
-            text-align:right;
-            font-family:Arial;
-            background:white;
-            border:1px solid #e5e7eb;
-            border-radius:18px;
-            padding:22px;
-            margin:15px 0;
-            box-shadow:0 5px 18px rgba(16,24,40,.06);
-        ">
-
+        st.markdown(
+            f"""
             <div style="
-                color:#667085;
-                font-size:14px;
-                margin-bottom:8px;
-            ">
-                {course}
-            </div>
-
-            <div style="
-                font-size:22px;
-                font-weight:bold;
-                color:#172033;
-                margin-bottom:15px;
-            ">
-                {lecture}
-            </div>
-
-            <div style="
-                background:#f8fafc;
-                padding:13px;
-                border-radius:12px;
-                line-height:1.8;
-                margin-bottom:17px;
-                color:#344054;
+                direction:rtl;
+                text-align:right;
+                background:white;
+                border:1px solid #e5e7eb;
+                border-radius:18px;
+                padding:22px;
+                margin:15px 0;
+                box-shadow:0 5px 18px rgba(16,24,40,.06);
             ">
 
-                <strong>
-                    لماذا ظهرت هذه المحاضرة؟
-                </strong>
+                <div style="
+                    color:#667085;
+                    font-size:14px;
+                    margin-bottom:8px;
+                ">
+                    {course}
+                </div>
 
-                <br>
+                <div style="
+                    font-size:22px;
+                    font-weight:bold;
+                    color:#172033;
+                    margin-bottom:15px;
+                ">
+                    {lecture}
+                </div>
 
-                {reason}
+                <div style="
+                    background:#f8fafc;
+                    padding:13px;
+                    border-radius:12px;
+                    line-height:1.8;
+                    margin-bottom:17px;
+                    color:#344054;
+                ">
 
-            </div>
+                    <strong>
+                        لماذا ظهرت هذه المحاضرة؟
+                    </strong>
 
-            <div style="
-                display:flex;
-                justify-content:space-between;
-                align-items:center;
-                gap:12px;
-                flex-wrap:wrap;
-            ">
+                    <br>
 
-                <div style="font-weight:bold;">
+                    {reason}
+
+                </div>
+
+                <div style="
+                    font-weight:bold;
+                    margin-bottom:15px;
+                ">
 
                     درجة الصلة:
 
@@ -1032,134 +968,92 @@ def web_search(query):
 
                 </div>
 
-                <a
-                    href="{url}"
-                    target="_blank"
-                    style="
-                        background:#2563eb;
-                        color:white;
-                        padding:10px 18px;
-                        border-radius:10px;
-                        text-decoration:none;
-                        font-weight:bold;
-                    "
-                >
-                    فتح المحاضرة
-                </a>
-
             </div>
+            """,
+            unsafe_allow_html=True
+        )
 
-        </div>
-        """
+        if url and url.lower() != "nan":
 
-        cards.append(card)
+            st.link_button(
+                "🔗 فتح المحاضرة",
+                url,
+                use_container_width=False
+            )
 
 
-    return f"""
-    <div style="
-        direction:rtl;
-        text-align:right;
-        font-family:Arial;
-    ">
+# =========================================================
+# واجهة التطبيق
+# =========================================================
 
-        <div style="
-            color:#667085;
-            margin-bottom:15px;
-        ">
+st.markdown(
+    """
+    <div dir="rtl" style="text-align:center;">
 
-            تم العثور على
-            <strong>
-                {len(formatted_results)}
-            </strong>
-            نتيجة مناسبة
+    # 🔎 محرك البحث الذكي لفيديوهات أكاديمية الفلاح
 
-        </div>
-
-        {''.join(cards)}
+    <p style="font-size:18px;color:#667085;">
+    اكتب ما تبحث عنه باللغة الطبيعية،
+    وسيبحث النظام داخل مكتبة المحاضرات.
+    </p>
 
     </div>
-    """
+    """,
+    unsafe_allow_html=True
+)
 
 
 # =========================================================
-# 15) Gradio Interface
+# مربع البحث
 # =========================================================
 
-css = """
-body {
-    direction: rtl;
-}
-
-.gradio-container {
-    direction: rtl;
-}
-"""
-
-
-with gr.Blocks(
-    title="محرك البحث الذكي للمحاضرات",
-    css=css
-) as demo:
-
-    gr.Markdown(
-        """
-        # 🔎 محرك البحث الذكي لفيديوهات أكاديمية الفلاح
-
-        اكتب ما تبحث عنه باللغة الطبيعية،
-        وسيبحث النظام داخل مكتبة المحاضرات.
-        """
+query = st.text_input(
+    "ماذا تبحث؟",
+    placeholder=(
+        "مثال: أريد محاضرات عن الإسعافات الأولية"
     )
+)
 
 
-    with gr.Row():
+search_button = st.button(
+    "🔍 بحث",
+    type="primary",
+    use_container_width=True
+)
 
-        query_box = gr.Textbox(
-            placeholder=(
-                "مثال: أريد محاضرات عن "
-                "الإسعافات الأولية"
-            ),
-            label="ماذا تبحث؟",
-            scale=5
+
+# =========================================================
+# تنفيذ البحث
+# =========================================================
+
+if search_button:
+
+    if not query.strip():
+
+        st.warning(
+            "من فضلك اكتب سؤال البحث."
         )
 
-        search_button = gr.Button(
-            "🔍 بحث",
-            variant="primary",
-            scale=1
+    else:
+
+        with st.spinner(
+            "جاري البحث داخل مكتبة المحاضرات..."
+        ):
+
+            results = search_library(
+                query
+            )
+
+        display_results(
+            results,
+            query
         )
 
 
-    results_html = gr.HTML()
-
-
-    search_button.click(
-        fn=web_search,
-        inputs=query_box,
-        outputs=results_html
-    )
-
-
-    query_box.submit(
-        fn=web_search,
-        inputs=query_box,
-        outputs=results_html
-    )
-
-
 # =========================================================
-# 16) تشغيل Render
+# Enter للبحث
 # =========================================================
 
-if __name__ == "__main__":
+if query.strip() and not search_button:
 
-    port = int(
-        os.environ.get(
-            "PORT",
-            7860
-        )
-    )
-
-    demo.launch(
-        server_name="0.0.0.0",
-        server_port=port
-    )
+    pass
