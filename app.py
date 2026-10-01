@@ -913,18 +913,48 @@ def display_results(results, query):
 
     results = calculate_relevance_score(results)
 
-    # ==========================================
-    # عدد النتائج - يظهر ناحية اليمين
-    # ==========================================
+    # =========================================================
+    # تنسيق الكروت
+    # =========================================================
     st.markdown(
-        f"""
-        <div style="text-align: right; font-weight: 700; margin-bottom: 20px;">
-            تم العثور على {len(results)} نتيجة مناسبة
-        </div>
+        """
+        <style>
+        /* تحسين شكل صندوق النتيجة */
+        div[data-testid="stVerticalBlockBorderWrapper"] {
+            border-radius: 16px !important;
+            border: 1px solid #e5e7eb !important;
+            box-shadow: 0 3px 12px rgba(0, 0, 0, 0.06) !important;
+            margin-bottom: 18px !important;
+        }
+
+        /* زر فتح المحاضرة */
+        div.stButton > button,
+        div[data-testid="stLinkButton"] a {
+            border-radius: 10px !important;
+            font-weight: 700 !important;
+        }
+
+        /* صندوق السبب */
+        div[data-testid="stAlert"] {
+            border-radius: 10px !important;
+        }
+        </style>
         """,
         unsafe_allow_html=True
     )
 
+    # =========================================================
+    # عدد النتائج
+    # =========================================================
+    st.markdown(
+        f"**تم العثور على {len(results)} نتيجة مناسبة**"
+    )
+
+    st.write("")
+
+    # =========================================================
+    # عرض النتائج
+    # =========================================================
     for _, row in results.iterrows():
 
         course = str(row["اسم الدورة"]).strip()
@@ -937,59 +967,76 @@ def display_results(results, query):
 
         score = int(row["relevance_score"])
 
-        # ==========================================
-        # الكارد
-        # ==========================================
+        # =====================================================
+        # CARD
+        # =====================================================
         with st.container(border=True):
 
-            # ======================================
-            # محتوى الكارد
-            # ======================================
-            st.markdown(
-                f"""
-                <div style="text-align: right; direction: rtl;">
-                    <div style="font-size: 15px; margin-bottom: 8px;">
-                        <strong>الدورة:</strong> {course}
-                    </div>
-
-                    <div style="font-size: 21px; font-weight: 700; margin-bottom: 18px;">
-                        المحاضرة: {lecture}
-                    </div>
-
-                    <div style="font-weight: 700; margin-bottom: 8px;">
-                        لماذا ظهرت هذه المحاضرة؟
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True
+            # -------------------------------------------------
+            # الجزء العلوي: المعلومات + درجة الصلة
+            # -------------------------------------------------
+            col_content, col_score = st.columns(
+                [5, 1.4],
+                vertical_alignment="top"
             )
 
-            # سبب ظهور المحاضرة
-            st.info(
-                reason,
-                icon="💡"
-            )
+            # =========================
+            # المحتوى - اليمين
+            # =========================
+            with col_content:
 
-            # ======================================
-            # السطر الأخير
-            # درجة الصلة شمال
-            # فتح المحاضرة يمين
-            # ======================================
-            col_score, col_link = st.columns([1, 5])
-
-            # الشمال
-            with col_score:
-                st.metric(
-                    "درجة الصلة",
-                    f"{score}/100"
+                st.markdown(
+                    f"**الدورة:** {course}"
                 )
 
-            # اليمين
+                st.markdown("")
+
+                st.markdown(
+                    f"### المحاضرة: {lecture}"
+                )
+
+                st.markdown("")
+
+                st.markdown(
+                    "**لماذا ظهرت هذه المحاضرة؟**"
+                )
+
+                st.info(
+                    reason,
+                    icon="💡"
+                )
+
+            # =========================
+            # درجة الصلة - الشمال
+            # =========================
+            with col_score:
+
+                st.metric(
+                    label="درجة الصلة",
+                    value=f"{score}/100"
+                )
+
+            # -------------------------------------------------
+            # مسافة
+            # -------------------------------------------------
+            st.write("")
+
+            # -------------------------------------------------
+            # السطر السفلي
+            # زر فتح المحاضرة ناحية اليمين
+            # -------------------------------------------------
+            col_empty, col_link = st.columns(
+                [5, 1.4],
+                vertical_alignment="center"
+            )
+
             with col_link:
+
                 if url and url.lower() != "nan":
                     st.link_button(
                         "🔗 فتح المحاضرة",
-                        url
+                        url,
+                        use_container_width=True
                     )
 # =========================================================
 # واجهة التطبيق
