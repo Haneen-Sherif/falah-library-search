@@ -913,8 +913,10 @@ def display_results(results, query):
 
     results = calculate_relevance_score(results)
 
-    # عدد النتائج
-    st.markdown(f"**تم العثور على {len(results)} نتيجة مناسبة**")
+    # عدد النتائج - ناحية اليمين
+    st.markdown(
+        f"**تم العثور على {len(results)} نتيجة مناسبة**"
+    )
 
     for _, row in results.iterrows():
 
@@ -933,43 +935,44 @@ def display_results(results, query):
         # =========================
         with st.container(border=True):
 
-            # الدورة
-            st.markdown(
-                f"**الدورة:** {course}"
-            )
-
-            # المحاضرة
-            st.markdown(
-                f"### المحاضرة: {lecture}"
-            )
-
-            # سبب ظهور النتيجة
-            st.markdown(
-                "**لماذا ظهرت هذه المحاضرة؟**"
-            )
-
-            st.info(
-                reason,
-                icon="💡"
-            )
+            # تقسيم الكارد:
+            # المحتوى يمين
+            # درجة الصلة شمال
+            col_content, col_score = st.columns([5, 1])
 
             # =========================
-            # أسفل البطاقة
-            # الرابط يسار
-            # الدرجة يمين
+            # المحتوى - اليمين
             # =========================
+            with col_content:
 
-            col_link, col_score = st.columns([1, 1])
+                st.markdown(
+                    f"**الدورة:** {course}"
+                )
 
-            with col_link:
+                st.markdown(
+                    f"### المحاضرة: {lecture}"
+                )
+
+                st.markdown(
+                    "**لماذا ظهرت هذه المحاضرة؟**"
+                )
+
+                st.info(
+                    reason,
+                    icon="💡"
+                )
+
                 if url and url.lower() != "nan":
                     st.link_button(
                         "🔗 فتح المحاضرة",
-                        url,
-                        use_container_width=True
+                        url
                     )
 
+            # =========================
+            # درجة الصلة - الشمال
+            # =========================
             with col_score:
+
                 st.metric(
                     "درجة الصلة",
                     f"{score}/100"
