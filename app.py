@@ -913,15 +913,17 @@ def display_results(results, query):
 
     results = calculate_relevance_score(results)
 
-# عدد النتائج
-st.markdown(
-    f"""
-    <div style="text-align: right; direction: rtl;">
-        <strong>تم العثور على {len(results)} نتيجة مناسبة</strong>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+    # ==========================================
+    # عدد النتائج - ناحية اليمين
+    # ==========================================
+    st.markdown(
+        f"""
+        <div style="text-align: right; direction: rtl;">
+            <strong>تم العثور على {len(results)} نتيجة مناسبة</strong>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
     for _, row in results.iterrows():
 
@@ -940,41 +942,41 @@ st.markdown(
         # ==========================================
         with st.container(border=True):
 
-            # الدورة
-st.markdown(
-    f"""
-    <div style="text-align: right; direction: rtl;">
-        <strong>الدورة:</strong> {course}
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+            # الدورة - ناحية اليمين
+            st.markdown(
+                f"""
+                <div style="text-align: right; direction: rtl;">
+                    <strong>الدورة:</strong> {course}
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
-# مسافة بسيطة قبل اسم المحاضرة
-st.write("")
+            # مسافة بسيطة قبل اسم المحاضرة
+            st.write("")
 
-# المحاضرة
-st.markdown(
-    f"""
-    <div style="text-align: right; direction: rtl;">
-        <strong>المحاضرة:</strong> {lecture}
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+            # المحاضرة - ناحية اليمين
+            st.markdown(
+                f"""
+                <div style="text-align: right; direction: rtl;">
+                    <strong>المحاضرة:</strong> {lecture}
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
-# مسافة
-st.write("")
+            # مسافة
+            st.write("")
 
-# عنوان سبب الظهور
-st.markdown(
-    """
-    <div style="text-align: right; direction: rtl;">
-        <strong>لماذا ظهرت هذه المحاضرة؟</strong>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+            # عنوان سبب الظهور - ناحية اليمين
+            st.markdown(
+                """
+                <div style="text-align: right; direction: rtl;">
+                    <strong>لماذا ظهرت هذه المحاضرة؟</strong>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
             # سبب الظهور
             st.info(
