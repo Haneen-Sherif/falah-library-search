@@ -906,230 +906,74 @@ def calculate_relevance_score(results):
     return results
 
 
-# =========================================================
-# عرض النتائج
-# =========================================================
-
-def display_results(
-    results,
-    query
-):
-
+def display_results(results, query):
     if results.empty:
-
-        st.warning(
-            f"لم نجد محاضرات مناسبة للبحث: {query}"
-        )
-
+        st.warning(f"لم نجد محاضرات مناسبة للبحث: {query}")
         return
 
-    results = calculate_relevance_score(
-        results
-    )
+    results = calculate_relevance_score(results)
 
-    # =====================================================
     # عدد النتائج
-    # =====================================================
-
-    st.markdown(
-        f"""
-        <div dir="rtl" style="
-            text-align:right;
-            font-size:18px;
-            color:#667085;
-            margin:25px 0 15px 0;
-        ">
-            تم العثور على
-            <strong>{len(results)}</strong>
-            نتيجة مناسبة
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    # =====================================================
-    # النتائج
-    # =====================================================
+    st.markdown(f"**تم العثور على {len(results)} نتيجة مناسبة**")
 
     for _, row in results.iterrows():
 
-        course = str(
-            row["اسم الدورة"]
-        )
-
-        lecture = str(
-            row["اسم المحاضرة"]
-        )
-
-        reason = build_result_reason(
-            row,
-            query
-        )
+        course = str(row["اسم الدورة"]).strip()
+        lecture = str(row["اسم المحاضرة"]).strip()
+        reason = build_result_reason(row, query)
 
         url = str(
-            row[
-                "الرابط من المصدر الاساسي (حفظا لحقوق النشر)"
-            ]
+            row["الرابط من المصدر الاساسي (حفظا لحقوق النشر)"]
         ).strip()
 
-        score = int(
-            row["relevance_score"]
-        )
+        score = int(row["relevance_score"])
 
-        # =================================================
-        # الكارد
-        # =================================================
-
+        # =========================
+        # بطاقة النتيجة
+        # =========================
         with st.container(border=True):
 
-            # -------------------------------------------------
             # الدورة
-            # -------------------------------------------------
-
             st.markdown(
-                f"""
-                <div dir="rtl" style="
-                    text-align:right;
-                    color:#667085;
-                    font-size:15px;
-                    margin-bottom:12px;
-                ">
-                    <strong>الدورة:</strong>
-                    {course}
-                </div>
-                """,
-                unsafe_allow_html=True
+                f"**الدورة:** {course}"
             )
 
-            # -------------------------------------------------
             # المحاضرة
-            # -------------------------------------------------
-
             st.markdown(
-                f"""
-                <div dir="rtl" style="
-                    text-align:right;
-                    color:#172033;
-                    font-size:24px;
-                    font-weight:700;
-                    margin-bottom:20px;
-                ">
-                    <strong>المحاضرة:</strong>
-                    {lecture}
-                </div>
-                """,
-                unsafe_allow_html=True
+                f"### المحاضرة: {lecture}"
             )
 
-            # -------------------------------------------------
             # سبب ظهور النتيجة
-            # -------------------------------------------------
-
             st.markdown(
-                """
-                <div dir="rtl" style="
-                    text-align:right;
-                    background:#f8fafc;
-                    border:1px solid #eaecf0;
-                    border-radius:12px;
-                    padding:15px 18px;
-                    margin-bottom:20px;
-                    color:#344054;
-                    line-height:1.8;
-                ">
-                    <div style="
-                        font-weight:700;
-                        color:#172033;
-                        margin-bottom:6px;
-                    ">
-                        لماذا ظهرت هذه المحاضرة؟
-                    </div>
-
-                    <div>
-                """,
-                unsafe_allow_html=True
+                "**لماذا ظهرت هذه المحاضرة؟**"
             )
 
-            # السبب كنص Streamlit عادي
-            st.markdown(
-                reason
+            st.info(
+                reason,
+                icon="💡"
             )
 
-            st.markdown(
-                """
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+            # =========================
+            # أسفل البطاقة
+            # الرابط يسار
+            # الدرجة يمين
+            # =========================
 
-            # -------------------------------------------------
-            # درجة الصلة + الرابط
-            # -------------------------------------------------
+            col_link, col_score = st.columns([1, 1])
 
-            col_score, col_link = st.columns(
-                [1, 1],
-                gap="large"
-            )
-
-            # درجة الصلة على اليمين
-            with col_score:
-
-                st.markdown(
-                    f"""
-                    <div dir="rtl" style="
-                        text-align:right;
-                        padding-top:8px;
-                    ">
-
-                        <span style="
-                            display:inline-block;
-                            background:#eff6ff;
-                            color:#2563eb;
-                            border-radius:10px;
-                            padding:9px 15px;
-                            font-weight:700;
-                            font-size:16px;
-                        ">
-                            درجة الصلة: {score}/100
-                        </span>
-
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-
-            # الرابط على الشمال
             with col_link:
-
                 if url and url.lower() != "nan":
-
-                    st.markdown(
-                        f"""
-                        <div dir="ltr" style="
-                            text-align:left;
-                            padding-top:4px;
-                        ">
-                            <a
-                                href="{url}"
-                                target="_blank"
-                                style="
-                                    display:inline-block;
-                                    background:#2563eb;
-                                    color:white;
-                                    padding:10px 18px;
-                                    border-radius:10px;
-                                    text-decoration:none;
-                                    font-weight:600;
-                                    font-size:15px;
-                                "
-                            >
-                                🔗 فتح المحاضرة
-                            </a>
-                        </div>
-                        """,
-                        unsafe_allow_html=True
+                    st.link_button(
+                        "🔗 فتح المحاضرة",
+                        url,
+                        use_container_width=True
                     )
+
+            with col_score:
+                st.metric(
+                    "درجة الصلة",
+                    f"{score}/100"
+                )
 # =========================================================
 # واجهة التطبيق
 # =========================================================
