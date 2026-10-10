@@ -221,6 +221,7 @@ def prepare_dataframe(df):
         "ID",
         "اسم الدورة",
         "اسم المحاضرة",
+        "اسم المحاضر",
         "التصنيف الأساسي",
         "التصنيف الفرعي",
         "keywords",
@@ -726,6 +727,7 @@ def search_library(
         "ID",
         "اسم الدورة",
         "اسم المحاضرة",
+        "اسم المحاضر",
         "التصنيف الأساسي",
         "التصنيف الفرعي",
         "keywords",
@@ -935,7 +937,10 @@ def display_results(results, query):
             row["الرابط من المصدر الاساسي (حفظا لحقوق النشر)"]
         ).strip()
 
-        score = int(row["relevance_score"])
+        lecturer = str(row.get("اسم المحاضر", "")).strip()
+
+        if lecturer.lower() == "nan":
+            lecturer = ""
 
         # ==========================================
         # الكارد
@@ -998,9 +1003,10 @@ def display_results(results, query):
 
             # درجة الصلة - الشمال
             with col_score:
-                st.metric(
-                    "درجة الصلة",
-                    f"{score}/100"
+                st.markdown("**اسم المحاضر**")
+
+                st.write(
+                    lecturer if lecturer else "غير محدد"
                 )
 
             # المساحة الفارغة في المنتصف
